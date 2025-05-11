@@ -18,7 +18,9 @@ get_filename_component(AMD_UPROF_INCLUDE_DIR "${AMD_UPROF_CONTROLLER}" DIRECTORY
 target_include_directories(amd_monitor_lib INTERFACE ${AMD_UPROF_INCLUDE_DIR})
 
 find_library(AMD_PROFILE_CONTROLLER_LIB AMDProfileController REQUIRED)
-target_link_libraries(amd_monitor_lib INTERFACE ${AMD_PROFILE_CONTROLLER_LIB})
+find_library(AMD_POWER_PROFILE_LIB AMDPowerProfileAPI PATH_SUFFIXES bin REQUIRED)
+
+target_link_libraries(amd_monitor_lib INTERFACE ${AMD_PROFILE_CONTROLLER_LIB} ${AMD_POWER_PROFILE_LIB})
 
 add_executable(amd_monitor main.cpp)
 target_link_libraries(amd_monitor PRIVATE amd_monitor_lib)
