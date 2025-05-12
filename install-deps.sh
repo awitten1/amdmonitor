@@ -8,7 +8,7 @@ pushd "$(realpath $(dirname $0))"
 
 install_apt() {
     echo "running with sudo for apt"
-    sudo apt update && sudo apt install -y build-essential cmake wget unzip
+    sudo apt update && sudo apt install -y build-essential cmake wget unzip libfmt-dev
 }
 
 DUCKDB_VERSION=v1.2.2
