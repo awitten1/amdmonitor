@@ -193,4 +193,10 @@ void DDL(duckdb::Connection& con) {
     );
 
     StoreCounters(con);
+
+    con.Query("CREATE TABLE IF NOT EXISTS measurements( "
+            " counter_id BIGINT REFERENCES pwr_counters(counter_id) "
+            " float result "
+            ""
+            ") ");
 }
