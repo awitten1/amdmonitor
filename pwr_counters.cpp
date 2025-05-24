@@ -1,4 +1,5 @@
 #include "pwr_counters.hpp"
+#include <vector>
 
 std::string PwrCounter::DeviceTypeToString(AMDTDeviceType type) {
     switch (type) {
@@ -102,6 +103,10 @@ std::string PwrCounter::CategoryToString(AMDTPwrCategory c) {
 }
 
 std::vector<PwrCounter> PwrCounter::GetAllPwrCounters() {
+    static std::vector<PwrCounter> counters;
+    if (!counters.empty()) {
+        return counters;
+    }
     std::vector<PwrCounter> ret;
     AMDTUInt32 num_counters;
     AMDTPwrCounterDesc* power_counter_desc;
@@ -113,9 +118,9 @@ std::vector<PwrCounter> PwrCounter::GetAllPwrCounters() {
     }
     for (int i = 0; i < num_counters; ++i) {
         auto& desc = power_counter_desc[i];
-        std::cout << desc.m_name << ", " << desc.m_description << std::endl;
         PwrCounter counter(&desc);
         ret.push_back(std::move(counter));
     }
-    return ret;
+    counters = std::move(ret);
+    return counters;
 }

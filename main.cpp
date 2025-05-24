@@ -1,10 +1,42 @@
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
+#include <numeric>
+#include <vector>
 #include "AMDProfileController.h"
 #include "AMDTDefinitions.h"
 #include "AMDTPowerProfileApi.h"
+#include "AMDTPowerProfileDataTypes.h"
 #include "sql.hpp"
+#include "pwr_counters.hpp"
+
+
+
+std::atomic<bool> isProfiling = true;
+
+void stopProfiling(int signum) {
+    std::cout << "got signal " << signum << std::endl;
+    isProfiling = false;
+}
+
+
+void Cleanup() {
+    std::cout << "stopping profiler" << std::endl;
+    AMDTPwrStopProfiling();
+    AMDTPwrProfileClose();
+}
+
+class OnBlockExit {
+    std::function<void()> f_;
+public:
+    template<typename Func>
+    OnBlockExit(Func&& func) : f_(std::forward<Func>(func)) {
+    }
+
+    ~OnBlockExit() {
+        f_();
+    }
+};
 
 int main() {
     auto result = AMDTPwrProfileInitialize(AMDT_PWR_MODE_TIMELINE_ONLINE);
@@ -15,20 +47,27 @@ int main() {
     auto conn = GetDuckdbConnection();
     DDL(conn);
 
-    // AMDTUInt32 counter_id;
-    // result = AMDTPwrGetCounterId(AMD_PWR_SOCKET_TEMPERATURE, &counter_id);
-    // if (result != AMDT_STATUS_OK) {
-    //     std::cerr << "failed getting counter id for socket temperature ret=" << std::hex << result << std::endl;
-    //     return EXIT_FAILURE;
-    // }
+    auto counters = PwrCounter::GetAllPwrCounters();
 
-    // result = AMDTPwrEnableCounter(counter_id);
-    // if (result != AMDT_STATUS_OK) {
-    //     std::cerr << "failed enabling socket temperature counter" << std::endl;
-    //     return EXIT_FAILURE;
-    // }
+    auto temperature_counters = std::accumulate(counters.begin(), counters.end(), std::vector<PwrCounter>{},
+        [](std::vector<PwrCounter> c, const PwrCounter& pwr_counter) {
+        if (pwr_counter.category_ == AMDT_PWR_CATEGORY_TEMPERATURE) {
+            c.push_back(pwr_counter);
+        }
+        return c;
+    });
 
-    // auto sample_frequency = std::chrono::milliseconds(5000);
+    for (auto& counter : temperature_counters) {
+        result = AMDTPwrEnableCounter(counter.counter_id_);
+        if (result != AMDT_STATUS_OK) {
+            std::cerr << "failed enabling socket temperature counter" << std::endl;
+            return EXIT_FAILURE;
+        }
+    }
+
+    auto sample_frequency = std::chrono::milliseconds(5000);
+
+    OnBlockExit obe(Cleanup);
 
     // result = AMDTPwrSetTimerSamplingPeriod(sample_frequency.count());
     // if (result != AMDT_STATUS_OK) {
