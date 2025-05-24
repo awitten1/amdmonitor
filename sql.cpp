@@ -1,10 +1,11 @@
 
-#include "AMDTDefinitions.h"
-#include "AMDTPowerProfileApi.h"
+#include "pwr_counters.hpp"
 #include "AMDTPowerProfileDataTypes.h"
 #include "duckdb.hpp"
 #include <fmt/core.h>
 #include <iostream>
+#include <sstream>
+#include <stdexcept>
 #include "sql.hpp"
 
 static duckdb::DuckDB db;
@@ -15,142 +16,52 @@ duckdb::Connection GetDuckdbConnection() {
     return conn;
 }
 
-std::string DeviceTypeToString(AMDTDeviceType type) {
-    switch (type) {        
-    case AMDT_PWR_DEVICE_PACKAGE:
-        return "socket";
-    case AMDT_PWR_DEVICE_CPU_COMPUTE_UNIT:
-        return "cpu compute unit";     
-    case AMDT_PWR_DEVICE_CPU_CORE:
-        return "cpu compute unit core";               
-    case AMDT_PWR_DEVICE_DIE:
-        return "die";                    
-    case AMDT_PWR_DEVICE_PHYSICAL_CORE:
-        return "core";          
-    case AMDT_PWR_DEVICE_THREAD:
-        return "thread";                 
-    case AMDT_PWR_DEVICE_INTERNAL_GPU:  
-        return "integrated gpu";         
-    case AMDT_PWR_DEVICE_EXTERNAL_GPU:
-        return "external gpu";
-    case AMDT_PWR_DEVICE_SVI2:
-        return "serial voltage interface";
-    default:
-        return "invalid";                                 
-    }
-}
-
-std::string AggToString(AMDTPwrAggregation t) {
-    switch (t) {
-    case AMDT_PWR_VALUE_SINGLE:
-        return "single";
-    case AMDT_PWR_VALUE_CUMULATIVE:
-        return "cumulative";
-    case AMDT_PWR_VALUE_HISTOGRAM:
-        return "historgram";
-    default:
-        return "invalid";
-    }
-}
-
-std::string UnitsToSTring(AMDTPwrUnit u) {\
-    switch (u) {
-
-    case AMDT_PWR_UNIT_TYPE_COUNT:
-        return "count";
-    case AMDT_PWR_UNIT_TYPE_NUMBER:
-        return "number";
-    case AMDT_PWR_UNIT_TYPE_PERCENT:
-        return "percent";
-    case AMDT_PWR_UNIT_TYPE_RATIO:
-        return "ratio";
-    case AMDT_PWR_UNIT_TYPE_MILLI_SECOND:
-        return "millisecond";
-    case AMDT_PWR_UNIT_TYPE_JOULE:
-        return "joule";
-    case AMDT_PWR_UNIT_TYPE_WATT:
-        return "watt";
-    case AMDT_PWR_UNIT_TYPE_VOLT:
-        return "volt";
-    case AMDT_PWR_UNIT_TYPE_MILLI_AMPERE:
-        return "ampere";
-    case AMDT_PWR_UNIT_TYPE_MEGA_HERTZ:
-        return "MHZ";
-    case AMDT_PWR_UNIT_TYPE_CENTIGRADE:
-        return "celsius";
-    default:
-        return "invalid";
-    }
-}
-
-std::string CategoryToString(AMDTPwrCategory c) {
-    switch (c) {
-    case AMDT_PWR_CATEGORY_POWER:
-        return "power";
-    case AMDT_PWR_CATEGORY_FREQUENCY:
-        return "frequency";
-    case AMDT_PWR_CATEGORY_TEMPERATURE:
-        return "temperature";
-    case AMDT_PWR_CATEGORY_VOLTAGE:
-        return "voltage";
-    case AMDT_PWR_CATEGORY_CURRENT:
-        return "current";
-    case AMDT_PWR_CATEGORY_PSTATE:
-        return "pstate";
-    case AMDT_PWR_CATEGORY_CSTATES_RESIDENCY:
-        return "cstates_residency";
-    case AMDT_PWR_CATEGORY_TIME:
-        return "time";
-    case AMDT_PWR_CATEGORY_ENERGY:
-        return "energy";
-    case AMDT_PWR_CATEGORY_CORRELATED_POWER:
-        return "power";
-    case AMDT_PWR_CATEGORY_CAC:
-        return "cac";
-    case AMDT_PWR_CATEGORY_CONTROLLER:
-        return "controller";
-    case AMDT_PWR_CATEGORY_DPM:
-        return "dpm";
-    default:
-        return "invalid";
-    }
-}
 
 void InsertDevices(duckdb::Connection& conn) {
     for (int i = 1; i < AMDT_PWR_DEVICE_CNT; ++i) {
         auto type = AMDTDeviceType(i);
-        conn.Query(fmt::format("INSERT OR IGNORE INTO devices VALUES({},'{}')", i, DeviceTypeToString(type)));
+        conn.Query(fmt::format("INSERT OR IGNORE INTO devices VALUES({},'{}')", i, PwrCounter::DeviceTypeToString(type)));
     }
 }
 
 void StoreCounters(duckdb::Connection& con) {
-    AMDTUInt32 num_counters;
-    AMDTPwrCounterDesc* power_counter_desc;
-    auto result = AMDTPwrGetSupportedCounters(&num_counters, &power_counter_desc);
-    if (result != AMDT_STATUS_OK) {
-        std::cerr << "failed to get supported counters" << std::endl;
-        return;
-    }
+    auto pwr_counters = PwrCounter::GetAllPwrCounters();
 
-    con.Query("PREPARE insert_into_counters AS INSERT OR IGNORE INTO pwr_counters VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)");
-    for (int i = 0; i < num_counters; ++i) {
-        auto& desc = power_counter_desc[i];
+    auto res = con.Query("PREPARE insert_into_counters AS "
+        "INSERT OR IGNORE INTO pwr_counters BY NAME "
+        "SELECT $counter_id as counter_id, "
+        "$counter_name as counter_name, "
+        "$counter_description as counter_description, "
+        "$device_id as device_id, "
+        "$device_name as device_name, "
+        "$device_type as device_type, "
+        "$device_instance_id as device_instance_id, "
+        "$category as category, "
+        "$aggregation as aggregation, "
+        "$min_value as min_value, "
+        "$max_value as max_value, "
+        "$units as units, "
+        "$has_child_counter as has_child_counter");
+    for (int i = 0; i < pwr_counters.size(); ++i) {
+        auto& pwr_counter = pwr_counters[i];
 
-        auto res = con.Query(fmt::format("EXECUTE insert_into_counters({},'{}','{}',{},'{}',{},{},'{}','{}',{},{},'{}',{})", 
-            desc.m_counterID,
-            desc.m_name,
-            desc.m_description,
-            desc.m_deviceId,
-            DeviceTypeToString(desc.m_devType),
-            desc.m_devType,
-            desc.m_devInstanceId,
-            CategoryToString(desc.m_category),
-            AggToString(desc.m_aggregation),
-            desc.m_minValue,
-            desc.m_maxValue,
-            UnitsToSTring(desc.m_units),
-            desc.m_isParentCounter
-        ));
+        std::ostringstream oss;
+        oss << "EXECUTE insert_into_counters("
+            << "counter_id := " << pwr_counter.counter_id_
+            << ", counter_name := '" << pwr_counter.name_ << "'"
+            << ", counter_description := '" << pwr_counter.description_ << "'"
+            << ", device_id := " << pwr_counter.device_id_
+            << ", device_name := '" << PwrCounter::DeviceTypeToString(pwr_counter.dev_type_) << "'"
+            << ", device_type := '" << pwr_counter.dev_type_ << "'"
+            << ", device_instance_id := " << pwr_counter.dev_instance_id_
+            << ", category := '" << PwrCounter::CategoryToString(pwr_counter.category_) << "'"
+            << ", aggregation := '" << PwrCounter::AggToString(pwr_counter.aggregation_) << "'"
+            << ", min_value := " << pwr_counter.min_value_
+            << ", max_value := " << pwr_counter.max_value_
+            << ", units := '" << PwrCounter::UnitsToString(pwr_counter.units_) << "'"
+            << ", has_child_counter := " << pwr_counter.is_parent_counter_ << ")";
+
+        auto res = con.Query(oss.str());
         if (res->HasError()) {
             std::cerr << res->GetError() << std::endl;
         }
@@ -158,26 +69,12 @@ void StoreCounters(duckdb::Connection& con) {
 
 }
 
-// typedef struct AMDTPwrCounterDesc
-// {
-//     AMDTUInt32           m_counterID;       /**< Counter index */
-//     AMDTUInt32           m_deviceId;        /**< Device Id */
-//     AMDTDeviceType       m_devType;         /**< Device type- compute unit/Core/ package/ dGPU */
-//     AMDTUInt32           m_devInstanceId;   /**< Device instance id within the device type */
-//     char*                m_name;            /**< Name of the counter */
-//     char*                m_description;     /**< Description of the counter */
-//     AMDTPwrCategory      m_category;        /**< Power/Freq/Temperature */
-//     AMDTPwrAggregation   m_aggregation;     /**< Single/Histogram/Cumulative */
-//     AMDTFloat64          m_minValue;        /**< Minimum possible counter value */
-//     AMDTFloat64          m_maxValue;        /**< Maximum possible counter value */
-//     AMDTPwrUnit          m_units;           /**< Seconds/MHz/Joules/Watts/Volt/Ampere */
-//     bool                 m_isParentCounter; /**< If the counter has some child counters*/
-// } AMDTPwrCounterDesc;
+
 void DDL(duckdb::Connection& con) {
     con.Query(
         "CREATE TABLE IF NOT EXISTS pwr_counters( "
-            "counter_id BIGINT PRIMARY KEY, " 
-            "counter_name VARCHAR, " 
+            "counter_id BIGINT PRIMARY KEY, "
+            "counter_name VARCHAR, "
             "counter_description VARCHAR, "
             "device_id BIGINT, "
             "device_name VARCHAR, "
@@ -185,8 +82,8 @@ void DDL(duckdb::Connection& con) {
             "device_instance_id BIGINT, "
             "category VARCHAR, "
             "aggregation VARCHAR, "
-            "minValue FLOAT, "
-            "maxValue FLOAT, "
+            "min_value FLOAT, "
+            "max_value FLOAT, "
             "units VARCHAR, "
             "has_child_counter BOOLEAN "
         ") "

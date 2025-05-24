@@ -22,7 +22,7 @@ find_library(AMD_POWER_PROFILE_LIB AMDPowerProfileAPI PATH_SUFFIXES bin REQUIRED
 
 target_link_libraries(amd_monitor_lib INTERFACE ${AMD_PROFILE_CONTROLLER_LIB} ${AMD_POWER_PROFILE_LIB})
 
-add_executable(amd_monitor main.cpp sql.cpp)
+add_executable(amd_monitor main.cpp sql.cpp pwr_counters.cpp)
 target_compile_definitions(amd_monitor PRIVATE _GLIBCXX_USE_CXX11_ABI=0)
 target_link_libraries(amd_monitor PRIVATE amd_monitor_lib)
 target_include_directories(amd_monitor PRIVATE ${CMAKE_CURRENT_LIST_DIR}/duckdb_install)
