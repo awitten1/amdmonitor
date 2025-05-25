@@ -21,3 +21,12 @@ If that returns no results, then run:
 ```
 /opt/AMDuProf_5.0-1479/bin/AMDPowerProfilerDriver.sh install
 ```
+
+## Usage
+
+Invoke program as
+```
+./amd_monitor
+```
+
+This tool stores measurements in a duckdb database in the working directory of the process.

@@ -81,6 +81,14 @@ int main() {
         return c;
     });
 
+    auto power_counters = std::accumulate(counters.begin(), counters.end(), std::vector<PwrCounter>{},
+    [](std::vector<PwrCounter> c, const PwrCounter& pwr_counter) {
+        if (pwr_counter.category_ == AMDT_PWR_CATEGORY_POWER) {
+            c.push_back(pwr_counter);
+        }
+        return c;
+    });
+
     for (auto& counter : temperature_counters) {
         counter.EnableCounter();
     }
@@ -88,6 +96,9 @@ int main() {
         counter.EnableCounter();
     }
     for (auto& counter : pstate_counters) {
+        counter.EnableCounter();
+    }
+    for (auto& counter : power_counters) {
         counter.EnableCounter();
     }
 
