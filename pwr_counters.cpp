@@ -113,7 +113,7 @@ std::vector<PwrCounter> PwrCounter::GetAllPwrCounters() {
     auto result = AMDTPwrGetSupportedCounters(&num_counters, &power_counter_desc);
     if (result != AMDT_STATUS_OK) {
         std::ostringstream oss;
-        oss << "failed to get supported counters" << std::endl;
+        oss << "failed to get supported counters " << std::hex << result << std::endl;
         throw std::runtime_error{oss.str()};
     }
     for (int i = 0; i < num_counters; ++i) {

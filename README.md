@@ -12,7 +12,12 @@ cmake --build build
 
 ## Troubleshooting
 
-Might need to run
+The AMDPowerProfiler kernel module needs to be installed for power profiling.
+```
+lsmod | grep -i amdpower
+```
+
+If that returns no results, then run:
 ```
 /opt/AMDuProf_5.0-1479/bin/AMDPowerProfilerDriver.sh install
 ```
