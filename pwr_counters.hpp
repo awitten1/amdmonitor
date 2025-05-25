@@ -41,7 +41,7 @@ public:
             std::ostringstream oss;
             oss << "reading counters not ok " << std::hex << result << std::endl;
             std::cerr << oss.str();
-            throw std::runtime_error{oss.str()};
+            return;
         }
 
         for (int i = 0; i < num_samples; ++i) {

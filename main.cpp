@@ -65,11 +65,22 @@ int main() {
         return c;
     });
 
+    auto frequency_counters = std::accumulate(counters.begin(), counters.end(), std::vector<PwrCounter>{},
+    [](std::vector<PwrCounter> c, const PwrCounter& pwr_counter) {
+        if (pwr_counter.category_ == AMDT_PWR_CATEGORY_FREQUENCY) {
+            c.push_back(pwr_counter);
+        }
+        return c;
+    });
+
     for (auto& counter : temperature_counters) {
         counter.EnableCounter();
     }
+    for (auto& counter : frequency_counters) {
+        counter.EnableCounter();
+    }
 
-    auto sample_interval = std::chrono::milliseconds(1000);
+    auto sample_interval = std::chrono::milliseconds(5000);
 
 
     result = AMDTPwrSetTimerSamplingPeriod(sample_interval.count());
