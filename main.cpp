@@ -66,11 +66,7 @@ int main() {
     });
 
     for (auto& counter : temperature_counters) {
-        result = AMDTPwrEnableCounter(counter.counter_id_);
-        if (result != AMDT_STATUS_OK) {
-            std::cerr << "failed enabling socket temperature counter" << std::endl;
-            return EXIT_FAILURE;
-        }
+        counter.EnableCounter();
     }
 
     auto sample_interval = std::chrono::milliseconds(1000);
@@ -94,18 +90,9 @@ int main() {
     while(isProfiling) {
         std::cout << "in profiling loop" << std::endl;
         std::this_thread::sleep_for(sample_interval + std::chrono::milliseconds(100));
-        AMDTUInt32 num_samples;
-        AMDTPwrSample* samples;
-        result = AMDTPwrReadAllEnabledCounters(&num_samples, &samples);
-        if (result != AMDT_STATUS_OK) {
-            std::cerr << "reading counters not ok " << std::hex << result << std::endl;
-            return result;
-        }
 
-        auto& sample = samples[0];
 
-        float temp = sample.m_counterValues->m_data;
-        std::cout << temp << std::endl;
+        PwrCounter::ReadAndStoreEnabledCounters(conn);
     }
 
 

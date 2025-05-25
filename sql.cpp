@@ -91,9 +91,15 @@ void DDL(duckdb::Connection& con) {
 
     StoreCounters(con);
 
-    con.Query("CREATE TABLE IF NOT EXISTS measurements( "
-            " counter_id BIGINT REFERENCES pwr_counters(counter_id) "
-            " float result "
-            ""
+    auto result = con.Query("CREATE TABLE IF NOT EXISTS measurements( "
+            " counter_id BIGINT REFERENCES pwr_counters(counter_id), "
+            " result FLOAT, "
+            " ts TIMESTAMP "
             ") ");
+    if (result->HasError()) {
+        std::ostringstream oss;
+        oss << "failed to create table measurements.  reason = " << result->GetError() << std::endl;
+        std::cerr << oss.str();
+        throw std::runtime_error{oss.str()};
+    }
 }
